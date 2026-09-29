@@ -25,12 +25,14 @@ export const REAL_CAPABILITIES: Readonly<CloposCapabilities> = Object.freeze({
 
 export class RealCloposService implements CloposService {
   readonly mode = 'real' as const;
-  readonly capabilities: CloposCapabilities = { ...REAL_CAPABILITIES };
+  readonly capabilities: CloposCapabilities;
 
   constructor(
     private readonly client: CloposClient,
-    private readonly scope: { venueId?: string } = {},
-  ) {}
+    private readonly scope: { venueId?: string; stockPath?: string } = {},
+  ) {
+    this.capabilities = { ...REAL_CAPABILITIES, stock: !!scope.stockPath };
+  }
 
   getProducts() {
     return inventory.getProducts(this.client);
@@ -48,7 +50,7 @@ export class RealCloposService implements CloposService {
     return inventory.getSuppliers(this.client);
   }
   getStock() {
-    return inventory.getStock(this.client);
+    return inventory.getStock(this.client, this.scope.stockPath);
   }
   createIncoming(data: IncomingInput) {
     return inventory.createIncoming(this.client, data);
@@ -88,6 +90,14 @@ export class RealCloposService implements CloposService {
       checks.push({ name: 'products', ok: true, detail: `${products.length} products` });
     } catch (err) {
       checks.push({ name: 'products', ok: false, detail: safeMessage(err) });
+    }
+    if (this.scope.stockPath) {
+      try {
+        const stock = await this.getStock();
+        checks.push({ name: 'stock', ok: stock.length > 0, detail: `${stock.length} stock rows from ${this.scope.stockPath}` });
+      } catch (err) {
+        checks.push({ name: 'stock', ok: false, detail: safeMessage(err) });
+      }
     }
     const unverified = unverifiedEndpoints();
     if (unverified.length) {

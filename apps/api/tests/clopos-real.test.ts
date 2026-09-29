@@ -36,8 +36,13 @@ const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => 
       ],
     });
   }
+  if (url.startsWith(`${API}/v2/test-stock`)) {
+    if (stockDown) return json(500, { message: 'down' });
+    return json(200, { data: [{ product: { id: 1, name: 'Plov rice' }, storage: { name: 'Kitchen' }, quantity: 3, unit: 'kg', cost: 20000 }] });
+  }
   return json(404, { message: 'not found' });
 }) as typeof fetch;
+let stockDown = false;
 
 describe.skipIf(!HAS_DB)('Clopos real adapter via API', () => {
   let t: TestContext;
@@ -166,5 +171,38 @@ describe.skipIf(!HAS_DB)('Clopos real adapter via API', () => {
     await t.app.inject({ method: 'DELETE', url: '/api/clopos/connection', headers: auth(t.tokens.ADMIN) });
     const row = await t.prisma.cloposConnection.findUniqueOrThrow({ where: { companyId: t.companyId } });
     expect(row).toMatchObject({ status: 'DISCONNECTED', clientSecretEnc: null, accessTokenEnc: null });
+  });
+});
+
+describe.skipIf(!HAS_DB)('Clopos stock via CLOPOS_STOCK_PATH', () => {
+  let t: TestContext;
+  beforeAll(async () => {
+    t = await createTestContext(
+      { CLOPOS_ADAPTER: 'real', CLOPOS_API_URL: API, CLOPOS_INTEGRATOR_ID: 'int-9', CLOPOS_STOCK_PATH: '/v2/test-stock' },
+      fakeFetch,
+    );
+    await t.app.inject({ method: 'POST', url: '/api/clopos/connect', headers: auth(t.tokens.ADMIN), payload: { brand: 'plovhouse', clientId: 'cid', clientSecret: SECRET } });
+  });
+  afterAll(async () => {
+    await t?.app.close();
+  });
+
+  it('shows live stock from Clopos', async () => {
+    const r = await t.app.inject({ method: 'GET', url: '/api/inventory', headers: auth(t.tokens.MANAGER) });
+    const d = r.json().data;
+    expect(d.capabilities.stock).toBe(true);
+    expect(d.stock).toEqual([{ productId: '1', productName: 'Plov rice', storageId: 'Kitchen', quantity: 3, unit: 'kg', cost: 20000 }]);
+    expect(d.summary).toMatchObject({ available: true, source: 'clopos', summary: { positions: 1, totalValue: 60000 } });
+    const status = await t.app.inject({ method: 'GET', url: '/api/clopos/status', headers: auth(t.tokens.ADMIN) });
+    expect(status.json().data.capabilities.stock).toBe(true);
+  });
+
+  it('falls back with a clear note when Clopos stock fails', async () => {
+    stockDown = true;
+    t.services.clopos.invalidate(t.companyId);
+    const inv = await t.services.reports.inventory(t.companyId);
+    expect(inv).toMatchObject({ available: false });
+    expect((inv as { reason: string }).reason).toMatch(/Clopos не отдал остатки/);
+    stockDown = false;
   });
 });

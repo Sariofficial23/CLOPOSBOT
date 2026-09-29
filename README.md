@@ -97,6 +97,7 @@ openssl rand -hex 32      # TELEGRAM_WEBHOOK_SECRET
 | `CLOPOS_CLIENT_SECRET` | нет* | значение по умолчанию для подключения (никогда не логируется) |
 | `CLOPOS_INTEGRATOR_ID` | нет* | значение по умолчанию для подключения |
 | `CLOPOS_REDIRECT_URI` | нет | зарезервирована, см. [раздел 7](#7-oauth--подключение-clopos) |
+| `CLOPOS_STOCK_PATH` | нет | путь endpoint остатков **ровно так, как его дал Clopos** (например `/v2/...`). Пусто — остатки только из Excel-импорта |
 | `CLOPOS_ADAPTER` | да | `real` (обязательно в production) или `mock` (только разработка) |
 | `FRONTEND_URL` | да | разрешённые CORS-origin через запятую |
 | `BACKEND_URL` | да | публичный URL бэкенда, из него собирается адрес Telegram-webhook |

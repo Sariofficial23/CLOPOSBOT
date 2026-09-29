@@ -98,7 +98,7 @@ export class CloposRegistry {
         fetch: this.fetchImpl,
       });
       const client = new CloposClient({ apiUrl: this.config.CLOPOS_API_URL, auth, fetch: this.fetchImpl, logger: this.logger });
-      service = new RealCloposService(client, { venueId: conn.venueId ?? undefined });
+      service = new RealCloposService(client, { venueId: conn.venueId ?? undefined, stockPath: this.config.CLOPOS_STOCK_PATH });
     }
     this.cache.set(companyId, service);
     return service;
@@ -175,7 +175,7 @@ export class CloposRegistry {
       tokenExpiresAt: c?.tokenExpiresAt ?? null,
       lastCheckedAt: c?.lastCheckedAt ?? null,
       lastError: c?.lastError ?? null,
-      capabilities: this.config.CLOPOS_ADAPTER === 'mock' ? MOCK_CAPABILITIES : REAL_CAPABILITIES,
+      capabilities: this.config.CLOPOS_ADAPTER === 'mock' ? MOCK_CAPABILITIES : { ...REAL_CAPABILITIES, stock: !!this.config.CLOPOS_STOCK_PATH },
     };
   }
 

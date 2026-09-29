@@ -41,6 +41,7 @@ async function main() {
     [ENDPOINTS.listReceipts.path, { [q.page]: '1', [q.limit]: '2' }],
     [ENDPOINTS.listReceipts.path, { [q.page]: '1', [q.limit]: '2', [q.dateFrom]: dayAgo.toISOString(), [q.dateTo]: today.toISOString() }],
   ];
+  if (process.env.CLOPOS_STOCK_PATH) checks.push([process.env.CLOPOS_STOCK_PATH, { [q.page]: '1', [q.limit]: '2' }]);
   for (const [path, query] of checks) {
     const url = new URL(joinUrl(apiUrl, path));
     for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);

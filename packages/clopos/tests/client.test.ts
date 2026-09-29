@@ -126,3 +126,33 @@ describe('receipts', () => {
     expect(calls).toHaveLength(2); // short page -> stop
   });
 });
+
+describe('stock (operator-configured path)', () => {
+  it('is unsupported without a configured path and makes no calls', async () => {
+    const { client, calls } = makeClient([]);
+    await expect(inventory.getStock(client)).rejects.toBeInstanceOf(CloposNotSupportedError);
+    expect(new RealCloposService(client).capabilities.stock).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('reads and normalizes stock from the configured path', async () => {
+    const { client, calls } = makeClient([
+      authOk,
+      () =>
+        json(200, {
+          data: [
+            { product: { id: 5, name: 'Cola' }, storage: { id: 1, name: 'Бар' }, quantity: '24', unit: 'шт', cost_price: 7000 },
+            { product_id: 6, product_name: 'Мука', warehouse_id: 2, balance: 1.5, unit_name: 'кг' },
+            { note: 'no quantity' },
+          ],
+        }),
+    ]);
+    const svc = new RealCloposService(client, { stockPath: '/v2/stocks' });
+    expect(svc.capabilities.stock).toBe(true);
+    expect(await svc.getStock()).toEqual([
+      { productId: '5', productName: 'Cola', storageId: 'Бар', quantity: 24, unit: 'шт', cost: 7000 },
+      { productId: '6', productName: 'Мука', storageId: '2', quantity: 1.5, unit: 'кг', cost: null },
+    ]);
+    expect(calls[1]!.url).toContain('/v2/stocks?page=1');
+  });
+});

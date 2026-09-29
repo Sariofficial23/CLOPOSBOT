@@ -243,9 +243,10 @@ describe.skipIf(!HAS_DB)('telegram bot handlers', () => {
     // mock adapter has its own stock; the import path is covered by the API test.
     expect(lastText()).toContain('📦 ОСТАТКИ');
 
+    // Clopos (mock) reports stock itself, so search uses live Clopos data first
     await press(IDS.MANAGER, 'stk:find');
-    await text(IDS.MANAGER, 'мук');
-    expect(lastText()).toContain('Мука (Кухня): 2');
+    await text(IDS.MANAGER, 'coca');
+    expect(lastText()).toContain('Coca-Cola 0.5 (mock-s-1)');
   });
 
   it('stock import is refused for roles without catalog:manage', async () => {

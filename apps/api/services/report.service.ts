@@ -7,7 +7,7 @@
  *  - expenses (purchases + salary payouts)   ← local database
  *  - inventory summary                       ← Clopos stock (when available)
  */
-import { CloposNotSupportedError, type SalesReportData } from '@cpos/clopos';
+import type { SalesReportData } from '@cpos/clopos';
 import { type ReportPreset, type ResolvedRange, resolveCustomRange, resolvePreset } from '@cpos/shared';
 import type { PrismaClient } from '@prisma/client';
 import { Errors } from '../lib/errors';
@@ -25,7 +25,7 @@ export interface FullReport {
   sales: SalesSummary;
   expenses: { incoming: number; salary: number; total: number };
   inventory:
-    | { available: true; summary: InventorySummary; source: 'clopos' | 'import'; asOf: string | null; fileName?: string }
+    | { available: true; summary: InventorySummary; source: 'clopos' | 'import'; asOf: string | null; fileName?: string; note?: string }
     | { available: false; reason: string };
   warnings: string[];
   generatedAt: string;
@@ -108,16 +108,18 @@ export class ReportService {
 
   async inventory(companyId: string): Promise<FullReport['inventory']> {
     const service = await this.clopos.forCompany(companyId);
-    if (!service.capabilities.stock) {
+    const fromImport = async (note?: string): Promise<FullReport['inventory']> => {
       const imported = await this.stockImport?.currentStock(companyId);
-      if (imported) return { available: true, summary: summarizeInventory(imported.stock), source: 'import', asOf: imported.asOf, fileName: imported.fileName };
-      return { available: false, reason: 'Остатки ещё не загружены: отправьте боту Excel-выгрузку остатков из Clopos' };
-    }
+      if (imported) return { available: true, summary: summarizeInventory(imported.stock), source: 'import', asOf: imported.asOf, fileName: imported.fileName, ...(note ? { note } : {}) };
+      return { available: false, reason: note ?? 'Остатки ещё не загружены: отправьте боту Excel-выгрузку остатков из Clopos' };
+    };
+    if (!service.capabilities.stock) return fromImport();
     try {
-      return { available: true, summary: summarizeInventory(await service.getStock()), source: 'clopos', asOf: null };
+      return { available: true, summary: summarizeInventory(await service.getStock()), source: 'clopos', asOf: new Date().toISOString() };
     } catch (err) {
-      if (err instanceof CloposNotSupportedError) return { available: false, reason: err.message };
-      throw err;
+      // Clopos stock failed: fall back to the last Excel import instead of an error
+      const detail = err instanceof Error ? err.message : 'unknown error';
+      return fromImport(`Clopos не отдал остатки (${detail.slice(0, 160)}). Показана последняя загрузка из Excel.`);
     }
   }
 

@@ -36,6 +36,13 @@ const schema = z
     CLOPOS_CLIENT_SECRET: z.string().optional(),
     CLOPOS_INTEGRATOR_ID: z.string().optional(),
     CLOPOS_REDIRECT_URI: z.string().optional(),
+    /** stock endpoint path exactly as given by Clopos, e.g. /v2/... (not in the public docs we could read) */
+    CLOPOS_STOCK_PATH: z
+      .string()
+      .trim()
+      .regex(/^\/[A-Za-z0-9_\-/{}.]*$/, 'must be a path starting with /, e.g. /v2/stock')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
 
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
     TRUST_PROXY: bool.default(true),

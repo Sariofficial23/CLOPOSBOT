@@ -6,9 +6,9 @@
  *   getStorages, getSuppliers, getStock, createIncoming, getIncomingOperations
  */
 import type { CloposClient } from './client';
-import { ENDPOINTS, MISSING_ENDPOINTS } from './endpoints';
+import { ENDPOINTS, MISSING_ENDPOINTS, RECEIPTS_LIST_QUERY } from './endpoints';
 import { CloposNotSupportedError } from './errors';
-import { extractList, num, str } from './normalize';
+import { extractList, type Json, num, str } from './normalize';
 import type {
   Category,
   DateRange,
@@ -93,9 +93,60 @@ export async function getSuppliers(_client: CloposClient): Promise<Supplier[]> {
   throw new CloposNotSupportedError('getSuppliers', MISSING_ENDPOINTS.getSuppliers);
 }
 
-/** TODO(clopos-endpoint): requires MISSING_ENDPOINTS.getStock */
-export async function getStock(_client: CloposClient): Promise<Stock[]> {
-  throw new CloposNotSupportedError('getStock', MISSING_ENDPOINTS.getStock);
+/**
+ * Stock balances. Clopos confirmed a stock endpoint exists but it isn't in
+ * the documentation we can access, so its path is configured by the operator
+ * (CLOPOS_STOCK_PATH, as given by Clopos) — never guessed here. Without it the
+ * operation stays unsupported.
+ *
+ * Field names are mapped defensively (product_id/name/title, storage/warehouse,
+ * quantity/amount/balance/stock/count, unit, cost/cost_price/price).
+ */
+export async function getStock(client: CloposClient, stockPath?: string): Promise<Stock[]> {
+  if (!stockPath) throw new CloposNotSupportedError('getStock', MISSING_ENDPOINTS.getStock);
+  const q = RECEIPTS_LIST_QUERY;
+  const seen = new Set<string>();
+  const out: Stock[] = [];
+  for (let page = 1; page <= q.maxPages; page++) {
+    const payload = await client.get(stockPath, { query: { [q.page]: page, [q.limit]: q.pageSize } });
+    const rows = extractList(payload, 'stock');
+    let fresh = 0;
+    for (const row of rows) {
+      const item = normalizeStock(row);
+      if (!item) continue;
+      const key = `${item.storageId ?? ''}:${item.productId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      fresh++;
+      out.push(item);
+    }
+    if (rows.length < q.pageSize || fresh === 0) break;
+  }
+  return out;
+}
+
+function nested(o: Json, key: string): Json | null {
+  const v = o[key];
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Json) : null;
+}
+
+export function normalizeStock(r: Json): Stock | null {
+  const product = nested(r, 'product') ?? nested(r, 'item') ?? nested(r, 'ingredient');
+  const storage = nested(r, 'storage') ?? nested(r, 'warehouse') ?? nested(r, 'stock');
+  const productName =
+    str(r.product_name) ?? str(r.name) ?? str(r.title) ?? (product ? (str(product.name) ?? str(product.title)) : null);
+  const productId = str(r.product_id) ?? str(r.item_id) ?? (product ? str(product.id) : null) ?? str(r.id) ?? productName;
+  const quantity =
+    num(r.quantity) ?? num(r.qty) ?? num(r.amount) ?? num(r.balance) ?? num(r.stock) ?? num(r.count) ?? num(r.remain) ?? num(r.remainder);
+  if (!productId || !productName || quantity === null) return null;
+  return {
+    productId,
+    productName,
+    storageId: str(r.storage_id) ?? str(r.warehouse_id) ?? (storage ? (str(storage.name) ?? str(storage.id)) : null) ?? str(r.storage_name),
+    quantity,
+    unit: str(r.unit) ?? str(r.unit_name) ?? str(r.measure) ?? (product ? str(product.unit) : null),
+    cost: num(r.cost) ?? num(r.cost_price) ?? num(r.avg_cost) ?? num(r.price) ?? (product ? num(product.cost) : null),
+  };
 }
 
 /** TODO(clopos-endpoint): requires MISSING_ENDPOINTS.createIncoming */

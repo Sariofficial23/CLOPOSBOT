@@ -49,7 +49,8 @@ export function registerStock(bot: Telegraf<BotContext>, deps: BotDeps) {
     const s = inv.summary;
     const lines = [
       '📦 ОСТАТКИ',
-      inv.source === 'import' && inv.asOf ? `По выгрузке из Clopos от ${fmtDate(inv.asOf, timezone)}` : 'Данные Clopos',
+      inv.source === 'import' && inv.asOf ? `По выгрузке из Clopos от ${fmtDate(inv.asOf, timezone)}` : `Онлайн из Clopos (${fmtDate(inv.asOf ?? new Date().toISOString(), timezone)})`,
+      ...(inv.note ? [`⚠️ ${inv.note}`] : []),
       '',
       `Позиций: ${s.positions}`,
       `Всего единиц: ${formatAmount(s.totalQuantity)}`,
@@ -139,7 +140,23 @@ export async function handleStockText(ctx: BotContext, deps: BotDeps, text: stri
     return true;
   }
   const actor = actorOf(ctx);
-  const res = await deps.services.stockImport.search(actor.companyId, q);
+  const service = await deps.services.clopos.forCompany(actor.companyId);
+  let res: { items: { productName: string; storageName: string | null; quantity: number; unit: string | null }[] } | null = null;
+  if (service.capabilities.stock) {
+    try {
+      const needle = q.toLowerCase();
+      const stock = await service.getStock();
+      res = {
+        items: stock
+          .filter((s) => s.productName.toLowerCase().includes(needle))
+          .slice(0, 15)
+          .map((s) => ({ productName: s.productName, storageName: s.storageId, quantity: s.quantity, unit: s.unit })),
+      };
+    } catch {
+      res = null; // fall back to the Excel import
+    }
+  }
+  res ??= await deps.services.stockImport.search(actor.companyId, q);
   if (!res) {
     ctx.session.flow = null;
     await ctx.reply('Остатки ещё не загружены.', Markup.inlineKeyboard([backToMenu()]));
