@@ -11,12 +11,20 @@ export class Encryptor {
     this.key = Encryptor.parseKey(rawKey);
   }
 
+  /**
+   * 64 hex chars or base64 of 32 bytes are used as-is. Any other random string
+   * of at least 32 characters (e.g. Render's "Generate" button) is stretched
+   * to a 256-bit key with SHA-256.
+   */
   static parseKey(raw: string): Buffer {
     const trimmed = raw.trim();
     if (/^[0-9a-fA-F]{64}$/.test(trimmed)) return Buffer.from(trimmed, 'hex');
-    const b64 = Buffer.from(trimmed, 'base64');
-    if (b64.length === 32) return b64;
-    throw new Error('ENCRYPTION_KEY must be 32 bytes (64 hex chars or base64). Generate: openssl rand -base64 32');
+    if (/^[A-Za-z0-9+/]{43}=?$/.test(trimmed)) {
+      const b64 = Buffer.from(trimmed, 'base64');
+      if (b64.length === 32) return b64;
+    }
+    if (trimmed.length >= 32) return createHash('sha256').update(trimmed, 'utf8').digest();
+    throw new Error('ENCRYPTION_KEY must be at least 32 characters. Generate: openssl rand -hex 32');
   }
 
   encrypt(plain: string): string {

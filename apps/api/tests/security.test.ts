@@ -22,7 +22,11 @@ describe('Encryptor', () => {
     parts[3] = Buffer.from('y').toString('base64url');
     expect(() => enc.decrypt(parts.join('.'))).toThrow();
   });
-  it('rejects short keys', () => expect(() => new Encryptor('short-key-short-key-short-key-12')).toThrow());
+  it('rejects short keys', () => expect(() => new Encryptor('short-key-too-short')).toThrow());
+  it('accepts any long random string (e.g. Render "Generate")', () => {
+    const e = new Encryptor('aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY');
+    expect(e.decrypt(e.encrypt('ok'))).toBe('ok');
+  });
   it('accepts hex keys', () => expect(() => new Encryptor('ab'.repeat(32))).not.toThrow());
 });
 
