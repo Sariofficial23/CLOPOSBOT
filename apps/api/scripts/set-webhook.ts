@@ -4,7 +4,7 @@ import { BOT_COMMANDS } from '../bot/index';
 import { loadConfig } from '../config/env';
 
 async function main() {
-  const config = loadConfig();
+  const config = loadConfig(process.env, 'worker');
   if (!config.TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is not set');
   if (!config.TELEGRAM_WEBHOOK_SECRET) throw new Error('TELEGRAM_WEBHOOK_SECRET is not set');
   const telegram = new Telegram(config.TELEGRAM_BOT_TOKEN);

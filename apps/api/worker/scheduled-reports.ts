@@ -16,7 +16,7 @@ import { createServices } from '../services';
 const log = (msg: string, extra: object = {}) => console.log(JSON.stringify({ level: 'info', msg, ...extra, time: new Date().toISOString() }));
 
 async function runOnce() {
-  const config = loadConfig();
+  const config = loadConfig(process.env, 'worker');
   if (!config.TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is required for the report worker');
   const prisma = createPrisma();
   const services = createServices(prisma, config, console);

@@ -90,6 +90,9 @@ describe('config', () => {
       expect(String(err)).not.toContain('too-short-secret-value');
     }
   });
+  it('the cron worker needs neither PORT nor a webhook secret', () => {
+    expect(() => loadConfig({ ...base, NODE_ENV: 'production', TELEGRAM_BOT_TOKEN: '1:a' }, 'worker')).not.toThrow();
+  });
   it('uses process.env.PORT and 0.0.0.0', () => {
     const c = loadConfig({ ...base, NODE_ENV: 'production', PORT: '10000' });
     expect(c.port).toBe(10000);

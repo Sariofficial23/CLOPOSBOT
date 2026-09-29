@@ -1,0 +1,89 @@
+# Render Blueprint: backend web service + PostgreSQL + cron job for scheduled reports.
+# Frontend is deployed separately on Vercel (apps/web).
+# Secrets marked `sync: false` are entered in the Render dashboard — never in git.
+
+databases:
+  - name: clopos-db
+    databaseName: clopos
+    user: clopos
+    plan: basic-256mb
+    postgresMajorVersion: "16"
+
+envVarGroups:
+  # shared by the web service and the cron job
+  - name: clopos-shared
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY # 32 random bytes, base64 — keep stable, it decrypts stored Clopos secrets
+        generateValue: true
+      - key: CLOPOS_ADAPTER
+        value: real
+      - key: CLOPOS_API_URL
+        value: https://integrations.clopos.com/open-api
+      - key: NODE_VERSION
+        value: "20"
+
+services:
+  - type: web
+    name: clopos-api
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --filter "@cpos/api..." && pnpm --filter @cpos/api build
+    # migrations run before the server starts (Prisma takes an advisory lock)
+    startCommand: cd apps/api && npx prisma migrate deploy && node dist/server.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - fromGroup: clopos-shared
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clopos-db
+          property: connectionString
+      - key: TELEGRAM_MODE
+        value: webhook
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET # openssl rand -hex 32  (Telegram allows only A-Z a-z 0-9 _ -)
+        sync: false
+      - key: CLOPOS_CLIENT_ID
+        sync: false
+      - key: CLOPOS_CLIENT_SECRET
+        sync: false
+      - key: CLOPOS_INTEGRATOR_ID
+        sync: false
+      - key: CLOPOS_REDIRECT_URI
+        sync: false
+      - key: FRONTEND_URL # https://your-app.vercel.app
+        sync: false
+      - key: BACKEND_URL # https://clopos-api.onrender.com
+        sync: false
+      - key: TIMEZONE
+        value: Asia/Tashkent
+
+  - type: cron
+    name: clopos-report-cron
+    runtime: node
+    plan: starter
+    region: frankfurt
+    # Render cron schedules are UTC. Every 15 min; the worker converts each
+    # company's local schedule (e.g. 23:00 Asia/Tashkent = 18:00 UTC) itself
+    # and is idempotent, so overlapping/repeated runs never double-send.
+    schedule: "*/15 * * * *"
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --filter "@cpos/api..." && pnpm --filter @cpos/api build
+    startCommand: cd apps/api && node dist/worker/scheduled-reports.js
+    envVars:
+      - fromGroup: clopos-shared
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clopos-db
+          property: connectionString
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false

@@ -7,6 +7,8 @@ const bool = z
 const schema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    /** server (web service) or worker (cron job: no PORT / webhook needed) */
+    APP_ROLE: z.enum(['server', 'worker']).default('server'),
     PORT: z.coerce.number().int().min(1).max(65535).optional(),
     HOST: z.string().default('0.0.0.0'),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -41,13 +43,14 @@ const schema = z
     REPORT_MAX_LAG_MINUTES: z.coerce.number().int().positive().default(180),
   })
   .superRefine((env, ctx) => {
+    const isWorker = env.APP_ROLE === 'worker';
     if (env.NODE_ENV === 'production') {
-      if (!env.PORT) ctx.addIssue({ code: 'custom', path: ['PORT'], message: 'PORT is required in production (Render sets it)' });
+      if (!env.PORT && !isWorker) ctx.addIssue({ code: 'custom', path: ['PORT'], message: 'PORT is required in production (Render sets it)' });
       if (env.CLOPOS_ADAPTER === 'mock') {
         ctx.addIssue({ code: 'custom', path: ['CLOPOS_ADAPTER'], message: 'MockCloposService is not allowed in production' });
       }
       const mode = env.TELEGRAM_MODE ?? (env.TELEGRAM_BOT_TOKEN ? 'webhook' : 'off');
-      if (mode === 'webhook' && (!env.TELEGRAM_WEBHOOK_SECRET || env.TELEGRAM_WEBHOOK_SECRET.length < 16)) {
+      if (!isWorker && mode === 'webhook' && (!env.TELEGRAM_WEBHOOK_SECRET || env.TELEGRAM_WEBHOOK_SECRET.length < 16)) {
         ctx.addIssue({ code: 'custom', path: ['TELEGRAM_WEBHOOK_SECRET'], message: 'At least 16 chars required for webhook mode' });
       }
     }
@@ -65,8 +68,8 @@ export interface AppConfig extends RawEnv {
   isProduction: boolean;
 }
 
-export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
-  const parsed = schema.safeParse(source);
+export function loadConfig(source: NodeJS.ProcessEnv = process.env, role?: 'server' | 'worker'): AppConfig {
+  const parsed = schema.safeParse(role ? { ...source, APP_ROLE: role } : source);
   if (!parsed.success) {
     // print variable names and reasons only — never values
     const lines = parsed.error.issues.map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`);
