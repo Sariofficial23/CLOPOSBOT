@@ -6,18 +6,26 @@ import type { Services } from '../services';
 import { ok } from './helpers';
 
 export default async function inventoryRoutes(app: FastifyInstance, opts: { services: Services }) {
-  const { clopos, reports, incoming } = opts.services;
+  const { clopos, reports, incoming, stockImport } = opts.services;
 
   app.get('/api/inventory', { preHandler: app.guard('stock:view') }, async (req) => {
     const actor = actorOf(req);
     const service = await clopos.forCompany(actor.companyId);
+    // a Clopos catalogue failure must not hide the (imported) stock
+    let productsError: string | null = null;
     const [products, categories, inventory] = await Promise.all([
-      service.capabilities.products ? service.getProducts() : Promise.resolve([]),
+      service.capabilities.products
+        ? service.getProducts().catch(() => {
+            productsError = 'Не удалось загрузить товары из Clopos';
+            return [];
+          })
+        : Promise.resolve([]),
       service.capabilities.categories ? service.getCategories().catch(() => []) : Promise.resolve([]),
       reports.inventory(actor.companyId),
     ]);
-    const stock = service.capabilities.stock ? await service.getStock() : null;
-    return ok({ mode: service.mode, capabilities: service.capabilities, products, categories, stock, summary: inventory });
+    const imported = service.capabilities.stock ? null : await stockImport.current(actor.companyId);
+    const stock = service.capabilities.stock ? await service.getStock() : (imported?.items ?? null);
+    return ok({ mode: service.mode, capabilities: service.capabilities, products, productsError, categories, stock, summary: inventory });
   });
 
   app.get('/api/incoming', { preHandler: app.guard('incoming:view') }, async (req) => {

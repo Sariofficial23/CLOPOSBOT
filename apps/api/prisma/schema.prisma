@@ -72,6 +72,7 @@ model Company {
   cloposConnection CloposConnection?
   warehouses       Warehouse[]
   suppliers        Supplier[]
+  stockImports     StockImport[]
 }
 
 model User {
@@ -306,4 +307,46 @@ model Supplier {
 
   @@unique([companyId, name])
   @@index([companyId])
+}
+
+enum StockImportStatus {
+  DRAFT  // parsed, waiting for confirmation
+  ACTIVE // confirmed; the latest ACTIVE import is the current stock
+}
+
+/// Stock snapshot imported from a Clopos Excel/CSV export (the Open API has no stock endpoint we can use yet).
+model StockImport {
+  id            String            @id @default(cuid())
+  companyId     String
+  userId        String?
+  fileName      String
+  source        String            @default("telegram")
+  status        StockImportStatus @default(DRAFT)
+  rowCount      Int
+  totalQuantity Decimal           @db.Decimal(18, 3)
+  totalValue    Decimal?          @db.Decimal(18, 2)
+  /// detected column mapping + parser warnings
+  meta          Json?
+  createdAt     DateTime          @default(now())
+  confirmedAt   DateTime?
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items   StockImportItem[]
+
+  @@index([companyId, status, createdAt])
+}
+
+model StockImportItem {
+  id          String   @id @default(cuid())
+  importId    String
+  productName String
+  storageName String?
+  quantity    Decimal  @db.Decimal(18, 3)
+  unit        String?
+  cost        Decimal? @db.Decimal(18, 2)
+  value       Decimal? @db.Decimal(18, 2)
+
+  stockImport StockImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId])
 }

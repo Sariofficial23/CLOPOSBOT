@@ -25,6 +25,7 @@ export const AuditAction = {
   COMPANY_DELETE: 'COMPANY_DELETE',
   CATALOG_CREATE: 'CATALOG_CREATE',
   CATALOG_UPDATE: 'CATALOG_UPDATE',
+  STOCK_IMPORT: 'STOCK_IMPORT',
 } as const;
 export type AuditActionName = (typeof AuditAction)[keyof typeof AuditAction];
 

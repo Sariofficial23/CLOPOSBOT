@@ -83,28 +83,4 @@ export function registerMenu(bot: Telegraf<BotContext>, deps: BotDeps) {
       ]),
     );
   });
-
-  bot.action('m:stock', async (ctx) => {
-    if (!(await allowed(ctx, 'stock:view'))) return;
-    const actor = actorOf(ctx);
-    const inv = await deps.services.reports.inventory(actor.companyId);
-    let text: string;
-    if (!inv.available) {
-      text = `📦 ОСТАТКИ\n\nНедоступно: ${inv.reason}`;
-    } else {
-      const s = inv.summary;
-      const { currency } = await deps.services.reports.companyTimezone(actor.companyId);
-      text = [
-        '📦 ОСТАТКИ',
-        '',
-        `Позиций: ${s.positions}`,
-        `Всего единиц: ${s.totalQuantity}`,
-        s.totalValue !== null ? `Стоимость: ${formatMoney(s.totalValue, currency)}` : 'Стоимость: нет данных',
-        '',
-        s.lowStock.length ? '⚠️ Заканчиваются:' : '✅ Нет позиций с низким остатком',
-        ...s.lowStock.slice(0, 15).map((l) => `  ${l.productName}: ${l.quantity}`),
-      ].join('\n');
-    }
-    await show(ctx, text, Markup.inlineKeyboard([backToMenu()]));
-  });
 }

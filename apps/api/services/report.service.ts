@@ -16,6 +16,7 @@ import { AuditAction, type AuditService } from './audit.service';
 import type { CloposRegistry } from './clopos.service';
 import { aggregateSales, type InventorySummary, type SalesSummary, summarizeInventory } from './report.calc';
 import { formatReportText } from './report.format';
+import type { StockImportService } from './stock-import.service';
 import type { Actor } from './types';
 
 export interface FullReport {
@@ -23,7 +24,9 @@ export interface FullReport {
   source: 'real' | 'mock';
   sales: SalesSummary;
   expenses: { incoming: number; salary: number; total: number };
-  inventory: { available: true; summary: InventorySummary } | { available: false; reason: string };
+  inventory:
+    | { available: true; summary: InventorySummary; source: 'clopos' | 'import'; asOf: string | null; fileName?: string }
+    | { available: false; reason: string };
   warnings: string[];
   generatedAt: string;
 }
@@ -57,6 +60,7 @@ export class ReportService {
     private readonly prisma: PrismaClient,
     private readonly clopos: CloposRegistry,
     private readonly audit: AuditService,
+    private readonly stockImport?: StockImportService,
   ) {}
 
   async companyTimezone(companyId: string): Promise<{ timezone: string; currency: string }> {
@@ -105,10 +109,12 @@ export class ReportService {
   async inventory(companyId: string): Promise<FullReport['inventory']> {
     const service = await this.clopos.forCompany(companyId);
     if (!service.capabilities.stock) {
-      return { available: false, reason: 'Clopos Open API не предоставляет остатки (нужен endpoint остатков)' };
+      const imported = await this.stockImport?.currentStock(companyId);
+      if (imported) return { available: true, summary: summarizeInventory(imported.stock), source: 'import', asOf: imported.asOf, fileName: imported.fileName };
+      return { available: false, reason: 'Остатки ещё не загружены: отправьте боту Excel-выгрузку остатков из Clopos' };
     }
     try {
-      return { available: true, summary: summarizeInventory(await service.getStock()) };
+      return { available: true, summary: summarizeInventory(await service.getStock()), source: 'clopos', asOf: null };
     } catch (err) {
       if (err instanceof CloposNotSupportedError) return { available: false, reason: err.message };
       throw err;

@@ -36,6 +36,7 @@ const ACTIONS: Record<string, string> = {
   COMPANY_DELETE: 'Удаление компании',
   CATALOG_CREATE: 'Справочник: добавление',
   CATALOG_UPDATE: 'Справочник: изменение',
+  STOCK_IMPORT: 'Импорт остатков',
 };
 
 const tone = (a: string) => (a.includes('FAILED') || a.includes('DENIED') || a.includes('DELETE') ? 'destructive' : a.startsWith('SALARY') ? 'warning' : 'default');

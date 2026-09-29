@@ -18,6 +18,7 @@ import healthRoutes from './routes/health';
 import inventoryRoutes from './routes/inventory';
 import reportRoutes from './routes/reports';
 import salaryRoutes from './routes/salary';
+import stockRoutes from './routes/stock';
 import telegramRoutes from './routes/telegram';
 import type { Services } from './services';
 
@@ -74,6 +75,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(dashboardRoutes, { services });
   await app.register(inventoryRoutes, { services });
   await app.register(catalogRoutes, { services });
+  await app.register(stockRoutes, { services });
   await app.register(reportRoutes, { services });
   await app.register(salaryRoutes, { services });
   await app.register(adminRoutes, { services });

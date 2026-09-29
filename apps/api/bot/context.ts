@@ -31,7 +31,12 @@ export interface EmployeeEditFlow {
   value?: string | number;
 }
 
-export type Flow = IncomingFlowState | SalaryInputFlow | EmployeeCreateFlow | EmployeeEditFlow;
+export interface StockSearchFlow {
+  kind: 'stock-search';
+  startedAt: number;
+}
+
+export type Flow = IncomingFlowState | SalaryInputFlow | EmployeeCreateFlow | EmployeeEditFlow | StockSearchFlow;
 
 export interface BotSession {
   flow?: Flow | null;

@@ -10,12 +10,14 @@ import { DashboardService } from './dashboard.service';
 import { IncomingService } from './incoming.service';
 import { ReportService } from './report.service';
 import { SalaryService } from './salary.service';
+import { StockImportService } from './stock-import.service';
 import { ScheduleService } from './schedule.service';
 
 export interface Services {
   audit: AuditService;
   auth: AuthService;
   catalog: CatalogService;
+  stockImport: StockImportService;
   clopos: CloposRegistry;
   company: CompanyService;
   dashboard: DashboardService;
@@ -38,10 +40,12 @@ export function createServices(
 ): Services {
   const audit = new AuditService(prisma, logger);
   const clopos = overrides.clopos ?? new CloposRegistry(prisma, config, new Encryptor(config.ENCRYPTION_KEY), logger, overrides.fetch);
-  const reports = new ReportService(prisma, clopos, audit);
+  const stockImport = new StockImportService(prisma, audit);
+  const reports = new ReportService(prisma, clopos, audit, stockImport);
   const catalog = new CatalogService(prisma, audit);
   return {
     catalog,
+    stockImport,
     audit,
     auth: new AuthService(prisma, audit, config.TELEGRAM_BOT_TOKEN),
     clopos,

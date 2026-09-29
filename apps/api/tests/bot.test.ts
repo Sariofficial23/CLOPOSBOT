@@ -22,6 +22,7 @@ describe.skipIf(!HAS_DB)('telegram bot handlers', () => {
   let calls: ApiCall[] = [];
   let updateId = 1;
   let originalCallApi: typeof Telegram.prototype.callApi;
+  let stockFile = Buffer.from('');
   const store = memorySessionStore();
 
   beforeAll(async () => {
@@ -33,6 +34,7 @@ describe.skipIf(!HAS_DB)('telegram bot handlers', () => {
         services: t.services,
         sessionStore: store,
         newId: () => `flow-${updateId}`,
+        downloadFile: async () => stockFile,
       },
       { botInfo: { id: 123, is_bot: true, first_name: 'TestBot', username: 'test_bot', can_join_groups: false, can_read_all_group_messages: false, supports_inline_queries: false } },
     );
@@ -217,6 +219,41 @@ describe.skipIf(!HAS_DB)('telegram bot handlers', () => {
     const s = await t.prisma.reportSchedule.findFirstOrThrow({ where: { type: 'DAILY' } });
     expect(s.enabled).toBe(true);
     expect(await t.prisma.auditLog.count({ where: { action: 'SCHEDULE_UPDATE' } })).toBe(1);
+  });
+
+  it('stock: Excel sent to the bot → preview → confirm → shown in 📦 Остатки and searchable', async () => {
+    stockFile = Buffer.from('Товар;Склад;Остаток;Себестоимость\nCoca-Cola 0.5;Бар;50;8000\nМука;Кухня;2;9000\n');
+    await bot.handleUpdate({
+      update_id: updateId++,
+      message: {
+        message_id: 99,
+        date: 0,
+        chat: chat(IDS.MANAGER),
+        from: from(IDS.MANAGER),
+        document: { file_id: 'f1', file_unique_id: 'u1', file_name: 'ostatki.csv', file_size: 100 },
+      },
+    } as never);
+    expect(lastText()).toContain('📦 ИМПОРТ ОСТАТКОВ');
+    expect(lastText()).toContain('Позиций: 2');
+    const confirm = buttons().find((x) => x.text === '✅ Подтвердить')!;
+    await press(IDS.MANAGER, confirm.callback_data);
+    expect(lastText()).toContain('Остатки обновлены');
+
+    await press(IDS.EMPLOYEE, 'm:stock');
+    // mock adapter has its own stock; the import path is covered by the API test.
+    expect(lastText()).toContain('📦 ОСТАТКИ');
+
+    await press(IDS.MANAGER, 'stk:find');
+    await text(IDS.MANAGER, 'мук');
+    expect(lastText()).toContain('Мука (Кухня): 2');
+  });
+
+  it('stock import is refused for roles without catalog:manage', async () => {
+    await bot.handleUpdate({
+      update_id: updateId++,
+      message: { message_id: 100, date: 0, chat: chat(IDS.ACCOUNTANT), from: from(IDS.ACCOUNTANT), document: { file_id: 'f2', file_unique_id: 'u2', file_name: 'x.csv' } },
+    } as never);
+    expect(lastText()).toContain('Недостаточно прав');
   });
 
   it('errors are reported without internals', async () => {

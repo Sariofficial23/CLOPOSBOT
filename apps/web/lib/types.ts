@@ -59,7 +59,9 @@ export interface InventorySummary {
   lowStock: { productName: string; quantity: number }[];
 }
 
-export type InventoryState = { available: true; summary: InventorySummary } | { available: false; reason: string };
+export type InventoryState =
+  | { available: true; summary: InventorySummary; source?: 'clopos' | 'import'; asOf?: string | null; fileName?: string }
+  | { available: false; reason: string };
 
 export interface FullReport {
   range: RangeInfo;

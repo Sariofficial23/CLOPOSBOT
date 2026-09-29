@@ -10,6 +10,7 @@
  *  - every section checks role permissions; mutations require confirmation
  *    and are audit-logged by the services
  */
+import { hasPermission, type Permission } from '@cpos/shared';
 import { session, Telegraf } from 'telegraf';
 import type { UserFromGetMe } from 'telegraf/types';
 import type { Services } from '../services';
@@ -21,6 +22,7 @@ import { HELP_TEXT, registerMenu, showMainMenu } from './handlers/menu';
 import { registerReports } from './handlers/reports';
 import { handleSalaryText, registerSalary } from './handlers/salary';
 import { registerSettings } from './handlers/settings';
+import { handleStockText, registerStock } from './handlers/stock';
 import { userMessage } from './helpers';
 
 export interface BotLogger {
@@ -37,10 +39,13 @@ export interface SessionStoreLike {
 
 export interface BotDeps {
   resolveActor: (telegramId: string) => Promise<Actor | null>;
-  services: Pick<Services, 'reports' | 'incoming' | 'salary' | 'schedules' | 'company' | 'clopos' | 'audit'>;
+  services: Pick<Services, 'reports' | 'incoming' | 'salary' | 'schedules' | 'company' | 'clopos' | 'audit' | 'stockImport'>;
   sessionStore: SessionStoreLike;
   logger?: BotLogger;
   newId?: () => string;
+  /** test hook: download a Telegram file */
+  downloadFile?: (ctx: BotContext, fileId: string) => Promise<Buffer>;
+  can: (actor: Actor, permission: Permission) => boolean;
 }
 
 /** simple per-user flood protection */
@@ -55,7 +60,8 @@ function rateLimiter(max = 30, windowMs = 10_000) {
   };
 }
 
-export function createBot(token: string, deps: BotDeps, opts: { botInfo?: UserFromGetMe } = {}): Telegraf<BotContext> {
+export function createBot(token: string, depsIn: Omit<BotDeps, 'can'> & Partial<Pick<BotDeps, 'can'>>, opts: { botInfo?: UserFromGetMe } = {}): Telegraf<BotContext> {
+  const deps: BotDeps = { ...depsIn, can: depsIn.can ?? ((a, p) => hasPermission(a.role, p)) };
   const bot = new Telegraf<BotContext>(token, { handlerTimeout: 60_000 });
   if (opts.botInfo) bot.botInfo = opts.botInfo;
   const limit = rateLimiter();
@@ -130,6 +136,7 @@ export function createBot(token: string, deps: BotDeps, opts: { botInfo?: UserFr
   registerIncoming(bot, deps);
   registerSalary(bot, deps);
   registerSettings(bot, deps);
+  registerStock(bot, deps);
 
   // free text → active flow
   bot.on('text', async (ctx) => {
@@ -144,6 +151,7 @@ export function createBot(token: string, deps: BotDeps, opts: { botInfo?: UserFr
     }
     if (await handleIncomingText(ctx, deps, text)) return;
     if (await handleSalaryText(ctx, deps, text)) return;
+    if (await handleStockText(ctx, deps, text)) return;
     await showMainMenu(ctx);
   });
 
