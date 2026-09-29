@@ -11,6 +11,7 @@ import authPlugin from './plugins/auth';
 import { registerErrorHandler } from './plugins/error-handler';
 import adminRoutes from './routes/admin';
 import authRoutes from './routes/auth';
+import catalogRoutes from './routes/catalog';
 import cloposRoutes from './routes/clopos';
 import dashboardRoutes from './routes/dashboard';
 import healthRoutes from './routes/health';
@@ -72,6 +73,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(authRoutes, { services });
   await app.register(dashboardRoutes, { services });
   await app.register(inventoryRoutes, { services });
+  await app.register(catalogRoutes, { services });
   await app.register(reportRoutes, { services });
   await app.register(salaryRoutes, { services });
   await app.register(adminRoutes, { services });

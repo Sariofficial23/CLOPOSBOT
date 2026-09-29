@@ -23,6 +23,8 @@ export const AuditAction = {
   USER_CREATE: 'USER_CREATE',
   USER_UPDATE: 'USER_UPDATE',
   COMPANY_DELETE: 'COMPANY_DELETE',
+  CATALOG_CREATE: 'CATALOG_CREATE',
+  CATALOG_UPDATE: 'CATALOG_UPDATE',
 } as const;
 export type AuditActionName = (typeof AuditAction)[keyof typeof AuditAction];
 

@@ -17,6 +17,7 @@ export const PERMISSIONS = [
   'stock:view',
   'incoming:view',
   'incoming:create',
+  'catalog:manage',
   'reports:view',
   'reports:schedule',
   'finance:view',
@@ -42,6 +43,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'stock:view',
     'incoming:view',
     'incoming:create',
+    'catalog:manage',
     'reports:view',
   ],
   // finance, salary, reports

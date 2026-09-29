@@ -107,18 +107,47 @@ describe.skipIf(!HAS_DB)('Clopos real adapter via API', () => {
     expect(d.capabilities).toMatchObject({ stock: false, createIncoming: false });
   });
 
-  it('incoming options explain the missing Clopos endpoints', async () => {
+  it('incoming options ask for local directories when Clopos has none', async () => {
     const r = await get('/api/incoming/options');
-    expect(r.json().data).toMatchObject({ available: false, mode: 'real' });
-    expect(r.json().data.reason).toMatch(/storages, suppliers/);
+    expect(r.json().data).toMatchObject({ available: false, mode: 'real', sources: { storages: 'local', suppliers: 'local' } });
+    expect(r.json().data.reason).toMatch(/Справочник/);
+  });
+
+  let warehouseId = '';
+  let supplierId = '';
+  it('local warehouses/suppliers make incoming available', async () => {
+    warehouseId = (await post('/api/warehouses', { name: 'Основной склад' })).json().data.id;
+    supplierId = (await post('/api/suppliers', { name: 'ABC Supplier', phone: '+998 90 123 45 67' })).json().data.id;
+    expect((await post('/api/warehouses', { name: 'Основной склад' })).statusCode).toBe(409);
+    const r = await get('/api/incoming/options');
+    expect(r.json().data).toMatchObject({
+      available: true,
+      storages: [{ id: warehouseId, name: 'Основной склад' }],
+      suppliers: [{ id: supplierId, name: 'ABC Supplier' }],
+    });
+    // inactive entries disappear from pickers
+    await t.app.inject({ method: 'PATCH', url: `/api/suppliers/${supplierId}`, headers: auth(t.tokens.ADMIN), payload: { active: false } });
+    expect((await get('/api/incoming/options')).json().data.available).toBe(false);
+    await t.app.inject({ method: 'PATCH', url: `/api/suppliers/${supplierId}`, headers: auth(t.tokens.ADMIN), payload: { active: true } });
+  });
+
+  it('rejects incoming with an unknown warehouse', async () => {
+    const r = await post('/api/incoming', {
+      storageId: 'ghost',
+      storageName: 'X',
+      supplierId,
+      supplierName: 'ABC',
+      items: [{ productId: '1', productName: 'Plov', quantity: 1, price: 1 }],
+    });
+    expect(r.statusCode).toBe(400);
   });
 
   it('incoming is saved LOCAL_ONLY because Clopos has no documented endpoint', async () => {
     const r = await post('/api/incoming', {
-      storageId: 'st-1',
-      storageName: 'Склад',
-      supplierId: 'sp-1',
-      supplierName: 'ABC',
+      storageId: warehouseId,
+      storageName: 'Основной склад',
+      supplierId,
+      supplierName: 'ABC Supplier',
       items: [{ productId: '1', productName: 'Plov', quantity: 2, price: 1000 }],
     });
     expect(r.statusCode).toBe(201);

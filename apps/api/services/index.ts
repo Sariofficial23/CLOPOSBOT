@@ -3,6 +3,7 @@ import type { AppConfig } from '../config/env';
 import { Encryptor } from '../lib/crypto';
 import { AuditService } from './audit.service';
 import { AuthService } from './auth.service';
+import { CatalogService } from './catalog.service';
 import { CloposRegistry } from './clopos.service';
 import { CompanyService } from './company.service';
 import { DashboardService } from './dashboard.service';
@@ -14,6 +15,7 @@ import { ScheduleService } from './schedule.service';
 export interface Services {
   audit: AuditService;
   auth: AuthService;
+  catalog: CatalogService;
   clopos: CloposRegistry;
   company: CompanyService;
   dashboard: DashboardService;
@@ -37,13 +39,15 @@ export function createServices(
   const audit = new AuditService(prisma, logger);
   const clopos = overrides.clopos ?? new CloposRegistry(prisma, config, new Encryptor(config.ENCRYPTION_KEY), logger, overrides.fetch);
   const reports = new ReportService(prisma, clopos, audit);
+  const catalog = new CatalogService(prisma, audit);
   return {
+    catalog,
     audit,
     auth: new AuthService(prisma, audit, config.TELEGRAM_BOT_TOKEN),
     clopos,
     company: new CompanyService(prisma, audit),
     dashboard: new DashboardService(prisma, reports, clopos),
-    incoming: new IncomingService(prisma, clopos, audit),
+    incoming: new IncomingService(prisma, clopos, audit, catalog),
     reports,
     salary: new SalaryService(prisma, audit),
     schedules: new ScheduleService(prisma, reports, audit, config.REPORT_MAX_LAG_MINUTES),

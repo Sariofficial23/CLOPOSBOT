@@ -168,3 +168,16 @@ export const cloposConnectSchema = z.object({
   venueId: z.string().trim().max(64).optional(),
 });
 export type CloposConnectInput = z.infer<typeof cloposConnectSchema>;
+
+export const warehouseSchema = z.object({
+  name: z.string().trim().min(1, 'Укажите название').max(120),
+  active: z.boolean().optional(),
+});
+export const warehouseUpdateSchema = warehouseSchema.partial().refine((v) => Object.keys(v).length > 0, { message: 'Нет полей для обновления' });
+
+export const supplierSchema = z.object({
+  name: z.string().trim().min(1, 'Укажите название').max(120),
+  phone: z.string().trim().max(32).regex(/^[+\d\s()-]*$/, 'Некорректный телефон').optional().nullable(),
+  active: z.boolean().optional(),
+});
+export const supplierUpdateSchema = supplierSchema.partial().refine((v) => Object.keys(v).length > 0, { message: 'Нет полей для обновления' });

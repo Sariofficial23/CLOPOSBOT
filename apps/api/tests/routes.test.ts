@@ -89,6 +89,7 @@ describe.skipIf(!HAS_DB)('API routes', () => {
       ['GET', '/api/audit', { SUPER_ADMIN: 200, ADMIN: 200, MANAGER: 403, ACCOUNTANT: 403 }],
       ['GET', '/api/users', { ADMIN: 200, MANAGER: 403 }],
       ['GET', '/api/clopos/status', { ADMIN: 200, ACCOUNTANT: 403 }],
+      ['GET', '/api/warehouses', { MANAGER: 200, ACCOUNTANT: 200, EMPLOYEE: 403 }],
     ];
     for (const [method, url, expected] of matrix) {
       for (const [role, status] of Object.entries(expected)) {
@@ -105,6 +106,12 @@ describe.skipIf(!HAS_DB)('API routes', () => {
       expect((await send('DELETE', `/api/companies/${other.id}`, t.tokens.ADMIN)).statusCode).toBe(403);
       expect((await send('DELETE', `/api/companies/${other.id}`, t.tokens.SUPER_ADMIN)).statusCode).toBe(200);
       expect(await t.prisma.company.findUnique({ where: { id: other.id } })).toBeNull();
+    });
+
+    it('catalog: MANAGER may add suppliers, ACCOUNTANT may not', async () => {
+      expect((await send('POST', '/api/suppliers', t.tokens.MANAGER, { name: 'Fresh Food' })).statusCode).toBe(201);
+      expect((await send('POST', '/api/suppliers', t.tokens.ACCOUNTANT, { name: 'Other' })).statusCode).toBe(403);
+      expect((await send('POST', '/api/warehouses', t.tokens.MANAGER, { name: '' })).statusCode).toBe(400);
     });
 
     it('ADMIN cannot create a SUPER_ADMIN', async () => {

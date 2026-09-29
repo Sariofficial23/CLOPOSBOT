@@ -15,6 +15,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { AppError } from '../lib/errors';
 import { isUniqueViolation, toNumber } from '../lib/prisma';
 import { AuditAction, type AuditService } from './audit.service';
+import type { CatalogService } from './catalog.service';
 import type { CloposRegistry } from './clopos.service';
 import type { Actor } from './types';
 
@@ -57,38 +58,52 @@ export class IncomingService {
     private readonly prisma: PrismaClient,
     private readonly clopos: CloposRegistry,
     private readonly audit: AuditService,
+    private readonly catalog: CatalogService,
   ) {}
 
-  /** Storages / suppliers / products for pickers (bot + web form). */
+  /**
+   * Storages / suppliers / products for pickers (bot + web form).
+   * Storages and suppliers come from Clopos when it offers them, otherwise from
+   * the local directories (Справочники). Products always come from Clopos.
+   */
   async options(companyId: string) {
     const service = await this.clopos.forCompany(companyId);
     const caps = service.capabilities;
+    const pick = (o: { id: string; name: string }) => ({ id: o.id, name: o.name });
+    const [storages, suppliers, products] = await Promise.all([
+      caps.storages ? service.getStorages() : this.catalog.listWarehouses(companyId, true).then((l) => l.map(pick)),
+      caps.suppliers ? service.getSuppliers() : this.catalog.listSuppliers(companyId, true).then((l) => l.map(pick)),
+      // a Clopos failure here must not hide the reason from the user
+      caps.products ? service.getProducts().catch(() => null) : Promise.resolve([]),
+    ]);
+    const productsFailed = products === null;
+    const sources = { storages: caps.storages ? ('clopos' as const) : ('local' as const), suppliers: caps.suppliers ? ('clopos' as const) : ('local' as const) };
     const missing: string[] = [];
-    if (!caps.storages) missing.push('storages');
-    if (!caps.suppliers) missing.push('suppliers');
-    if (missing.length) {
-      return {
-        available: false as const,
-        mode: service.mode,
-        reason: `Clopos Open API не документирует endpoint(ы): ${missing.join(', ')}. Приход через API невозможен до их появления.`,
-        storages: [],
-        suppliers: [],
-        products: caps.products ? await service.getProducts() : [],
-      };
-    }
-    const [storages, suppliers, products] = await Promise.all([service.getStorages(), service.getSuppliers(), service.getProducts()]);
-    return { available: true as const, mode: service.mode, reason: null, storages, suppliers, products };
+    if (!storages.length) missing.push(sources.storages === 'local' ? 'склады (добавьте в «Справочниках»)' : 'склады в Clopos');
+    if (!suppliers.length) missing.push(sources.suppliers === 'local' ? 'поставщики (добавьте в «Справочниках»)' : 'поставщики в Clopos');
+    if (productsFailed) missing.push('товары (не удалось загрузить из Clopos — проверьте подключение в Настройках)');
+    else if (!products.length) missing.push('товары в Clopos');
+    return {
+      available: missing.length === 0,
+      mode: service.mode,
+      sources,
+      reason: missing.length ? `Для прихода не хватает: ${missing.join(', ')}.` : null,
+      storages,
+      suppliers,
+      products: products ?? [],
+    };
   }
 
-  /** Business validation against the Clopos catalogue (beyond schema validation). */
+  /** Business validation against the catalogue (Clopos or local directories). */
   async validateAgainstCatalog(companyId: string, input: IncomingInputDto) {
     const opts = await this.options(companyId);
-    if (!opts.available) return; // nothing to check against
     const problems: string[] = [];
-    if (!opts.storages.some((s) => s.id === input.storageId)) problems.push('Склад не найден в Clopos');
-    if (!opts.suppliers.some((s) => s.id === input.supplierId)) problems.push('Поставщик не найден в Clopos');
-    const productIds = new Set(opts.products.map((p) => p.id));
-    for (const item of input.items) if (!productIds.has(item.productId)) problems.push(`Товар не найден: ${item.productName}`);
+    if (!opts.storages.some((s) => s.id === input.storageId)) problems.push('Склад не найден');
+    if (!opts.suppliers.some((s) => s.id === input.supplierId)) problems.push('Поставщик не найден');
+    if (opts.products.length) {
+      const productIds = new Set(opts.products.map((p) => p.id));
+      for (const item of input.items) if (!productIds.has(item.productId)) problems.push(`Товар не найден: ${item.productName}`);
+    }
     const seen = new Set<string>();
     for (const item of input.items) {
       if (seen.has(item.productId)) problems.push(`Товар указан дважды: ${item.productName}`);

@@ -34,6 +34,8 @@ const ACTIONS: Record<string, string> = {
   USER_CREATE: 'Новый пользователь',
   USER_UPDATE: 'Изменение пользователя',
   COMPANY_DELETE: 'Удаление компании',
+  CATALOG_CREATE: 'Справочник: добавление',
+  CATALOG_UPDATE: 'Справочник: изменение',
 };
 
 const tone = (a: string) => (a.includes('FAILED') || a.includes('DENIED') || a.includes('DELETE') ? 'destructive' : a.startsWith('SALARY') ? 'warning' : 'default');

@@ -2,6 +2,7 @@ import type { Permission } from '@cpos/shared';
 import {
   BarChart3,
   Boxes,
+  BookOpen,
   ClipboardList,
   FileText,
   LayoutDashboard,
@@ -25,6 +26,7 @@ export const NAV: NavItem[] = [
   { href: '/dashboard/sales', label: 'Продажи', icon: BarChart3, permission: 'sales:view' },
   { href: '/dashboard/inventory', label: 'Остатки', icon: Boxes, permission: 'stock:view' },
   { href: '/dashboard/incoming', label: 'Приходы', icon: PackagePlus, permission: 'incoming:view' },
+  { href: '/dashboard/catalog', label: 'Справочники', icon: BookOpen, permission: 'incoming:view' },
   { href: '/dashboard/salary', label: 'Зарплата', icon: Wallet, permission: 'salary:view' },
   { href: '/dashboard/employees', label: 'Сотрудники', icon: Users, permission: 'employees:view' },
   { href: '/dashboard/reports', label: 'Отчёты', icon: FileText, permission: 'reports:view' },

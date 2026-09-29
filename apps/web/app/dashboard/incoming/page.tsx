@@ -181,8 +181,11 @@ function NewIncomingDialog({ currency, onClose, onCreated }: { currency: string;
       {loading && <Skeleton className="h-40" />}
       {optsError && <Alert variant="error">{optsError}</Alert>}
       {opts && !opts.available && (
-        <Alert variant="warning" title="Приход через Clopos API недоступен">
-          {opts.reason}
+        <Alert variant="warning" title="Приход пока недоступен">
+          {opts.reason}{' '}
+          <a href="/dashboard/catalog" className="font-medium underline">
+            Открыть справочники
+          </a>
         </Alert>
       )}
       {opts?.available && !confirming && (
