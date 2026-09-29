@@ -1,0 +1,276 @@
+// Clopos Telegram Management System — database schema
+// All timestamps are stored in UTC. Company.timezone is used for presentation
+// and for resolving report periods / schedules.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  ACCOUNTANT
+  EMPLOYEE
+}
+
+enum SalaryStatus {
+  DRAFT
+  PAID
+}
+
+enum IncomingStatus {
+  PENDING    // saved locally, Clopos call in progress
+  SYNCED     // accepted by Clopos (cloposOperationId set)
+  LOCAL_ONLY // Clopos API has no endpoint for this operation yet
+  FAILED     // Clopos call failed (syncError set)
+}
+
+enum ScheduleType {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum ReportPeriodMode {
+  CURRENT
+  PREVIOUS
+}
+
+enum CloposConnectionStatus {
+  CONNECTED
+  ERROR
+  DISCONNECTED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  timezone  String   @default("Asia/Tashkent")
+  currency  String   @default("сум")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users            User[]
+  employees        Employee[]
+  salaryRecords    SalaryRecord[]
+  incomings        Incoming[]
+  reportSchedules  ReportSchedule[]
+  auditLogs        AuditLog[]
+  cloposConnection CloposConnection?
+}
+
+model User {
+  id           String    @id @default(cuid())
+  companyId    String
+  name         String
+  email        String?   @unique
+  passwordHash String?
+  telegramId   String?   @unique
+  role         Role      @default(EMPLOYEE)
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  incomings Incoming[]
+
+  @@index([companyId])
+  @@index([telegramId])
+}
+
+model Employee {
+  id         String   @id @default(cuid())
+  companyId  String
+  name       String
+  position   String
+  baseSalary Decimal  @db.Decimal(18, 2)
+  active     Boolean  @default(true)
+  telegramId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  salaryRecords SalaryRecord[]
+
+  @@index([companyId])
+  @@index([companyId, active])
+}
+
+model SalaryRecord {
+  id         String       @id @default(cuid())
+  companyId  String
+  employeeId String
+  /// calendar month "YYYY-MM"
+  period     String
+  baseSalary Decimal      @db.Decimal(18, 2)
+  bonus      Decimal      @default(0) @db.Decimal(18, 2)
+  penalty    Decimal      @default(0) @db.Decimal(18, 2)
+  advance    Decimal      @default(0) @db.Decimal(18, 2)
+  /// baseSalary + bonus - penalty - advance
+  total      Decimal      @db.Decimal(18, 2)
+  status     SalaryStatus @default(DRAFT)
+  paidAt     DateTime?
+  paidById   String?
+  note       String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, period])
+  @@index([companyId, period])
+  @@index([employeeId])
+  @@index([period])
+  @@index([createdAt])
+}
+
+model Incoming {
+  id                String         @id @default(cuid())
+  companyId         String
+  userId            String?
+  /// client supplied key; makes retries/double taps safe
+  idempotencyKey    String?
+  storageId         String
+  storageName       String
+  supplierId        String
+  supplierName      String
+  status            IncomingStatus @default(PENDING)
+  cloposOperationId String?
+  syncError         String?
+  total             Decimal        @db.Decimal(18, 2)
+  note              String?
+  source            String         @default("telegram")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items   IncomingItem[]
+
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, createdAt])
+  @@index([createdAt])
+}
+
+model IncomingItem {
+  id          String  @id @default(cuid())
+  incomingId  String
+  productId   String
+  productName String
+  quantity    Decimal @db.Decimal(18, 3)
+  price       Decimal @db.Decimal(18, 2)
+  total       Decimal @db.Decimal(18, 2)
+
+  incoming Incoming @relation(fields: [incomingId], references: [id], onDelete: Cascade)
+
+  @@index([incomingId])
+}
+
+model ReportSchedule {
+  id           String           @id @default(cuid())
+  companyId    String
+  type         ScheduleType
+  enabled      Boolean          @default(false)
+  /// company-local time
+  hour         Int
+  minute       Int              @default(0)
+  /// 1 = Monday … 7 = Sunday (WEEKLY)
+  dayOfWeek    Int?
+  /// 1-28 (MONTHLY)
+  dayOfMonth   Int?
+  reportPeriod ReportPeriodMode @default(CURRENT)
+  /// optional group chat that also receives the report
+  extraChatId  String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deliveries ReportDelivery[]
+
+  @@unique([companyId, type])
+  @@index([companyId])
+}
+
+/// One row per schedule occurrence — the unique key makes cron runs idempotent.
+model ReportDelivery {
+  id            String         @id @default(cuid())
+  scheduleId    String
+  occurrenceKey String
+  status        DeliveryStatus @default(PENDING)
+  attempts      Int            @default(0)
+  error         String?
+  sentAt        DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  schedule ReportSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, occurrenceKey])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  companyId String?
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  /// sanitized — never contains passwords, tokens or API secrets
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([companyId, action])
+}
+
+model CloposConnection {
+  id              String                 @id @default(cuid())
+  companyId       String                 @unique
+  brand           String
+  clientId        String
+  /// AES-256-GCM encrypted; null = use CLOPOS_CLIENT_SECRET from the server env
+  clientSecretEnc String?
+  integratorId    String
+  venueId         String?
+  /// AES-256-GCM encrypted Clopos token
+  accessTokenEnc  String?
+  tokenExpiresAt  DateTime?
+  status          CloposConnectionStatus @default(DISCONNECTED)
+  lastError       String?
+  lastCheckedAt   DateTime?
+  connectedAt     DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+/// Telegraf session storage (multi-step flows survive restarts / multiple instances)
+model BotSession {
+  key       String   @id
+  data      Json
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+}

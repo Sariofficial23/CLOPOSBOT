@@ -1,0 +1,47 @@
+{
+  "name": "@cpos/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env server.ts",
+    "build": "prisma generate && tsup",
+    "start": "node dist/server.js",
+    "worker:reports": "node dist/worker/scheduled-reports.js",
+    "typecheck": "prisma generate >/dev/null && tsc --noEmit",
+    "test": "vitest run",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "seed": "tsx prisma/seed.ts",
+    "bot:set-webhook": "tsx --env-file-if-exists=../../.env scripts/set-webhook.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@cpos/clopos": "workspace:*",
+    "@cpos/shared": "workspace:*",
+    "@fastify/cors": "^11.1.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/jwt": "^10.0.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "@prisma/client": "6.19.3",
+    "bcryptjs": "^3.0.2",
+    "fastify": "^5.6.0",
+    "fastify-plugin": "^5.1.0",
+    "luxon": "^3.7.2",
+    "prisma": "6.19.3",
+    "telegraf": "^4.16.3",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.1",
+    "@types/node": "^22.10.0",
+    "pino-pretty": "^13.1.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,11 @@
+export * from './types';
+export * from './errors';
+export * from './endpoints';
+export * from './auth';
+export * from './client';
+export * from './normalize';
+export * as inventory from './inventory';
+export { listReceipts, normalizeReceipt } from './sales';
+export type { CloposService, ConnectionTestResult } from './service';
+export { RealCloposService, REAL_CAPABILITIES } from './real';
+export { MockCloposService, MOCK_CAPABILITIES } from './mock';

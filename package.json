@@ -1,0 +1,22 @@
+{
+  "name": "clopos-telegram-management",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "build": "pnpm -r run build",
+    "build:api": "pnpm --filter @cpos/api... run build",
+    "build:web": "pnpm --filter @cpos/web... run build",
+    "dev:api": "pnpm --filter @cpos/api dev",
+    "dev:web": "pnpm --filter @cpos/web dev",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "db:migrate": "pnpm --filter @cpos/api prisma:migrate",
+    "db:deploy": "pnpm --filter @cpos/api prisma:deploy",
+    "db:seed": "pnpm --filter @cpos/api seed"
+  }
+}
