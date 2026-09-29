@@ -116,10 +116,11 @@ export async function requestToken(creds: CloposCredentials, opts: AuthOptions):
   const obj = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
 
   if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 422) {
-    throw new CloposAuthError('Clopos rejected the credentials', res.status);
+    // include the status so a proxy/firewall 403 isn't mistaken for bad credentials
+    throw new CloposAuthError(`Clopos rejected the credentials (HTTP ${res.status})`, res.status);
   }
   if (!res.ok) throw new CloposHttpError(res.status, 'POST', ENDPOINTS.auth.path);
-  if (obj.success === false) throw new CloposAuthError('Clopos rejected the credentials', res.status);
+  if (obj.success === false) throw new CloposAuthError(`Clopos rejected the credentials (HTTP ${res.status})`, res.status);
 
   const token = obj.token;
   if (typeof token !== 'string' || token.length === 0) throw new CloposUnexpectedResponseError('auth: missing token');

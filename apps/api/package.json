@@ -14,7 +14,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
-    "bot:set-webhook": "tsx --env-file-if-exists=../../.env scripts/set-webhook.ts"
+    "bot:set-webhook": "tsx --env-file-if-exists=../../.env scripts/set-webhook.ts",
+    "clopos:probe": "tsx --env-file-if-exists=../../.env scripts/clopos-probe.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
