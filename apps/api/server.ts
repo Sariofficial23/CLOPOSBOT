@@ -2,6 +2,7 @@ import { BOT_COMMANDS, createBot } from './bot/index';
 import { prismaSessionStore } from './bot/session-store';
 import { buildApp } from './app';
 import { loadConfig } from './config/env';
+import { bootstrapAdmin } from './lib/bootstrap';
 import { createPrisma } from './lib/prisma';
 import { createServices } from './services';
 
@@ -20,6 +21,8 @@ async function main() {
     : null;
 
   const app = await buildApp({ config, prisma, services, bot });
+
+  await bootstrapAdmin(prisma, process.env, app.log).catch((err: Error) => app.log.error({ err: err.message }, 'bootstrap failed'));
 
   await app.listen({ host: config.HOST, port: config.port });
   app.log.info({ cloposAdapter: config.CLOPOS_ADAPTER, telegram: config.telegramMode }, 'server started');

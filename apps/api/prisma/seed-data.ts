@@ -16,6 +16,8 @@ export interface SeedOptions {
   bcryptRounds?: number;
   /** extra demo users (one per role) */
   demoUsers?: boolean;
+  /** demo employees + salary record (default true) */
+  demoData?: boolean;
   demoPassword?: string;
 }
 
@@ -68,14 +70,14 @@ export async function seed(prisma: PrismaClient, opts: SeedOptions) {
   }
 
   const employees = [];
-  for (const e of DEMO_EMPLOYEES) {
+  for (const e of opts.demoData === false ? [] : DEMO_EMPLOYEES) {
     const existing = await prisma.employee.findFirst({ where: { companyId: company.id, name: e.name } });
     employees.push(existing ?? (await prisma.employee.create({ data: { companyId: company.id, ...e } })));
   }
 
   const period = periodFromDate(new Date(), timezone);
-  const first = employees[0]!;
-  await prisma.salaryRecord.upsert({
+  const first = employees[0];
+  if (first) await prisma.salaryRecord.upsert({
     where: { employeeId_period: { employeeId: first.id, period } },
     create: {
       companyId: company.id,

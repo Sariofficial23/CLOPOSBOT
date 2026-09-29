@@ -18,6 +18,7 @@ async function main() {
       companyName: process.env.SEED_COMPANY_NAME,
       timezone: process.env.TIMEZONE,
       demoUsers: !production,
+      demoData: !production,
     });
     console.log(`Seeded company "${res.company.name}" (${res.company.id}); admin: ${adminEmail}`);
     if (!production) console.log('Demo users (password DemoPassword123!): admin/manager/accountant/employee .demo@example.com');
